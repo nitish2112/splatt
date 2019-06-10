@@ -12,8 +12,9 @@
 #include "util.h"
 
 #include <math.h>
+#include <time.h>
 
-
+#define BILLION 1000000000L
 
 /******************************************************************************
  * API FUNCTIONS
@@ -314,6 +315,9 @@ double cpd_als_iterate(
   sp_timer_t modetime[MAX_NMODES];
   timer_start(&timers[TIMER_CPD]);
 
+  struct timespec start, end;
+  float diff;
+
   idx_t const niters = (idx_t) opts[SPLATT_OPTION_NITER];
   for(idx_t it=0; it < niters; ++it) {
     timer_fstart(&itertime);
@@ -324,7 +328,11 @@ double cpd_als_iterate(
 
       /* M1 = X * (C o B) */
       timer_start(&timers[TIMER_MTTKRP]);
+      clock_gettime(CLOCK_MONOTONIC, &start); /* mark start time */
       mttkrp_csf(tensors, mats, m, thds, mttkrp_ws, opts);
+      clock_gettime(CLOCK_MONOTONIC, &end); /* mark the end time */
+      diff += ( BILLION * (end.tv_sec - start.tv_sec) + end.tv_nsec - start.tv_nsec );
+      printf("Time taken: %f ns (%ld cycles)\n", diff,  (long int)(diff/0.5)); // number if cycles at 2GHz clock
       timer_stop(&timers[TIMER_MTTKRP]);
 
 #if 0
