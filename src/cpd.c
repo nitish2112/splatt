@@ -15,6 +15,8 @@
 #include <time.h>
 
 #define BILLION 1000000000L
+#include "args.h"
+
 
 /******************************************************************************
  * API FUNCTIONS
@@ -304,7 +306,6 @@ double cpd_als_iterate(
   /* mttkrp workspace */
   splatt_mttkrp_ws * mttkrp_ws = splatt_mttkrp_alloc_ws(tensors,nfactors,opts);
 
-  /* Compute input tensor norm */
   double oldfit = 0;
   double fit = 0;
   val_t ttnormsq = csf_frobsq(tensors);
@@ -325,6 +326,140 @@ double cpd_als_iterate(
       timer_fstart(&modetime[m]);
       mats[MAX_NMODES]->I = tensors[0].dims[m];
       m1->I = mats[m]->I;
+
+FILE* fp = fopen("args.h", "w");
+
+      /* print tensors */
+      fprintf(fp, "splatt_csf * tensors = {\n");
+  
+    for(int t = 0; t < 2; t++){
+       fprintf(fp, "{.nnz = %d,\n.nmodes = %d,\n.dims = {", tensors[t].nnz, tensors[t].nmodes);
+      for (int x = 0; x < 2; x++){
+        fprintf(fp, "%d, ", tensors[t].dims[x]);
+        }
+      fprintf(fp, "%d},\n", tensors[t].dims[2]);
+
+      fprintf(fp, ".dim_perm = {");
+      for (int x = 0; x < 2; x++){
+        fprintf(fp, "%d, ", tensors[t].dim_perm[x]);
+      }
+      fprintf(fp, "%d},\n", tensors[t].dim_perm[2]);
+
+      fprintf(fp, ".dim_iperm = {");
+      for (int x = 0; x < 2; x++){
+        fprintf(fp, "%d, ", tensors[t].dim_iperm[x]);
+      }
+      fprintf(fp, "%d},\n", tensors[t].dim_iperm[2]);
+
+      fprintf(fp, ".which_tile = %d,\n.ntiles = %d,\n", tensors[t].which_tile, tensors[t].ntiles);
+      fprintf(fp, ".ntiled_modes = %d,\n.tile_dims = {", tensors[t].ntiled_modes);
+      for(int x = 0; x < 2; x++){
+        fprintf(fp, "%d, ", tensors[t].tile_dims[x]);
+      }
+      fprintf(fp, "%d},\n", tensors[t].tile_dims[2]);
+
+      fprintf(fp, ".pt = {\n  .nfibs = {");
+      for (int x = 0; x < 2; x++){
+	fprintf(fp, "%d, ", tensors[t].pt->nfibs[x]);
+      }
+      fprintf(fp, "%d},\n  ", tensors[t].pt->nfibs[2]);
+
+      fprintf(fp, ".fptr = {");
+      for(int x = 0; x < 1; x++){
+	fprintf(fp, "%d, ", *(tensors[t].pt->fptr[x]));
+      }
+      
+      fprintf(fp, "%d},\n  ", *(tensors[t].pt->fptr[1]));
+
+      fprintf(fp, ".fids = {");
+      for(int x = 0; x < 2; x++){
+        fprintf(fp, "%d, ", *(tensors[t].pt->fids[x]));
+      }
+      fprintf(fp, "%d},\n ", *(tensors[t].pt->fids[2]));
+
+      fprintf(fp, ".vals ={");
+      for(int x = 0; x < tensors[t].nnz-1; x++){
+	fprintf(fp, "%d, ", tensors[t].pt->vals[x]);
+      }
+      fprintf(fp, "%d}}}\n", tensors[t].pt->vals[tensors[t].nnz-1]);
+   }
+      fprintf(fp, "}");
+
+
+      fprintf(fp, "\n\n\n");
+
+
+      /* print mats */
+      fprintf(fp, "matrix_t ** mats = {\n");
+      for (int x = 0; x < 2; x++){
+	fprintf(fp, "  {.I = %d, .J = %d, ", mats[x]->I, mats[x]->J);
+	fprintf(fp, " .vals = {");
+	for(int i = 0; i < mats[x]->I * mats[x]->J - 1; i++){
+	  fprintf(fp, "%d, ", mats[x]->vals[i]);
+	} 
+        fprintf(fp, "%d}, ", mats[x]->vals[mats[x]->I * mats[x]->J - 1]);
+	fprintf(fp, ".rowmajor = %d}\n", mats[x]->rowmajor);
+      }
+      fprintf(fp, "  {.I = %d, .J = %d, ", mats[2]->I, mats[2]->J);
+      fprintf(fp, " .vals = {");
+      for(int i = 0; i < mats[2]->I * mats[2]->J - 1; i++){
+        fprintf(fp, "%d, ", mats[2]->vals[i]);
+      }
+      fprintf(fp, "%d}, ", mats[2]->vals[mats[2]->I * mats[2]->J - 1]);
+      fprintf(fp, ".rowmajor = %d}}", mats[2]->rowmajor);	
+
+
+      fprintf(fp, "\n\n\n");
+
+   
+      /* print m */
+      fprintf(fp, "int m = 0; ");
+
+
+      fprintf(fp, "\n\n\n");
+
+      /* print thds */
+      
+
+      /* print mttkrp_ws, */
+      fprintf(fp, "splatt_mttkrp_ws * mttkrp_ws = {\n");
+      fprintf(fp, ".num_csf = %d, \n", mttkrp_ws->num_csf);
+      fprintf(fp, ".mode_csf_map = {");
+      for(int x = 0; x < 2; x++){
+	fprintf(fp, "%d, ", mttkrp_ws->mode_csf_map[x]);
+      }
+      fprintf(fp, "%d}, \n", mttkrp_ws->mode_csf_map[2]);
+      
+      fprintf(fp, ".num_threads = %d, \n", mttkrp_ws->num_threads);
+      
+      fprintf(fp, ".tile_partition = {");
+      for(int x = 0; x < 1; x++){
+        fprintf(fp, "%d, ", mttkrp_ws->tile_partition[x]);
+      }
+      fprintf(fp, "%d}, \n", mttkrp_ws->tile_partition[1]);
+
+      fprintf(fp, ".tree_partition = {");
+      for(int x = 0; x < 1; x++){
+        fprintf(fp, "%d, ", *(mttkrp_ws->tree_partition[x]));
+      }
+      fprintf(fp, "%d}, \n", *(mttkrp_ws->tree_partition[1]));
+
+      fprintf(fp, ".is_privatized = {");
+      for(int x = 0; x < 2; x++){
+        fprintf(fp, "%d, ", mttkrp_ws->is_privatized[x]);
+      }
+      fprintf(fp, "%d}, \n", mttkrp_ws->is_privatized[2]);
+
+      fprintf(fp, ".privatize_buffer = {%d}\n", *(mttkrp_ws->privatize_buffer));
+      fprintf(fp, "}");
+      
+
+      fprintf(fp, "\n\n\n");
+
+
+      /*print opts */ 
+      fprintf(fp, "double * opts = %d;", *opts);
+
 
       /* M1 = X * (C o B) */
       timer_start(&timers[TIMER_MTTKRP]);
