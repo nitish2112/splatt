@@ -15,8 +15,9 @@
 #include <time.h>
 
 #define BILLION 1000000000L
-#include "args.h"
+#include "../args.h"
 
+//#define DUMP
 
 /******************************************************************************
  * API FUNCTIONS
@@ -320,23 +321,76 @@ double cpd_als_iterate(
   float diff;
 
   idx_t const niters = (idx_t) opts[SPLATT_OPTION_NITER];
-  for(idx_t it=0; it < niters; ++it) {
+//  for(idx_t it=0; it < niters; ++it) {
+    idx_t  it = 0;
     timer_fstart(&itertime);
-    for(idx_t m=0; m < nmodes; ++m) {
+//    for(idx_t m=0; m < nmodes; ++m) {
+      idx_t m = 0;
       timer_fstart(&modetime[m]);
       mats[MAX_NMODES]->I = tensors[0].dims[m];
       m1->I = mats[m]->I;
 
-FILE* fp = fopen("args.h", "w");
+#ifdef DUMP
+    FILE* fp = fopen("args.h", "w");
 
       /* print tensors */
-      fprintf(fp, "splatt_csf * tensors = {\n");
+
+      //sparsity structs first
+      for(int x = 0; x < 2; x++){
+        fprintf(fp, "splatt_idx_t fptr_vals_%d[] = {", x);
+        fprintf(fp, "%d, ", *(tensors[x].pt->fptr[0]));
+        fprintf(fp, "%d};\n\n", *(tensors[x].pt->fptr[1]));
+      }
+
+      for(int x = 0; x < 2; x++){
+	fprintf(fp, "splatt_idx_t fids_vals_%d[] = {", x);
+        for(int i = 0; i < 2; i++){
+           fprintf(fp, "%d, ", *(tensors[x].pt->fids[i]));
+        }
+        fprintf(fp, "%d};\n\n", *(tensors[x].pt->fids[2]));
+      }
+
+      for(int x = 0; x < 2; x++){
+	fprintf(fp, "splatt_val_t pt_vals_%d[] ={", x);
+	for(int i = 0; i < tensors[x].nnz-1; i++){
+           fprintf(fp, "%f, ", tensors[x].pt->vals[i]);
+        }
+        fprintf(fp, "%f};\n\n", tensors[x].pt->vals[tensors[x].nnz-1]);	
+      }
+
+      for(int s = 0; s < 2; s++){
+	fprintf(fp, "csf_sparsity pt_struct_%d ={\n", s);
+	fprintf(fp, ".nfibs = {");
+	for (int x = 0; x < 2; x++){
+	   fprintf(fp, "%d, ", tensors[s].pt->nfibs[x]);
+	}
+	fprintf(fp, "%d},\n", tensors[s].pt->nfibs[2]);
+
+	fprintf(fp, ".fptr = {");
+  	fprintf(fp, "&fptr_vals_%d[0], ", s);
+	fprintf(fp, "&fptr_vals_%d[1]},\n", s);
+
+	fprintf(fp, ".fids = {");
+	for(int x = 0; x < 2; x++){
+           fprintf(fp, "&fids_vals_%d[%d], ", s, x);
+	}
+	fprintf(fp, "&fids_vals_%d[2]},\n", s);
+
+	fprintf(fp, ".vals = &pt_vals_%d[0]", s);
+
+	fprintf(fp, "};\n\n");
+      }
+
+      //Now tensors
+      fprintf(fp, "splatt_csf tensors_arr[] = {\n");
   
     for(int t = 0; t < 2; t++){
-       fprintf(fp, "{.nnz = %d,\n.nmodes = %d,\n.dims = {", tensors[t].nnz, tensors[t].nmodes);
+      fprintf(fp, "{.nnz = %d,\n.nmodes = %d,\n", tensors[t].nnz, tensors[t].nmodes);
+      
+      fprintf(fp, ".dims = {");
       for (int x = 0; x < 2; x++){
         fprintf(fp, "%d, ", tensors[t].dims[x]);
-        }
+      }
       fprintf(fp, "%d},\n", tensors[t].dims[2]);
 
       fprintf(fp, ".dim_perm = {");
@@ -352,77 +406,83 @@ FILE* fp = fopen("args.h", "w");
       fprintf(fp, "%d},\n", tensors[t].dim_iperm[2]);
 
       fprintf(fp, ".which_tile = %d,\n.ntiles = %d,\n", tensors[t].which_tile, tensors[t].ntiles);
+    
       fprintf(fp, ".ntiled_modes = %d,\n.tile_dims = {", tensors[t].ntiled_modes);
       for(int x = 0; x < 2; x++){
         fprintf(fp, "%d, ", tensors[t].tile_dims[x]);
       }
       fprintf(fp, "%d},\n", tensors[t].tile_dims[2]);
 
-      fprintf(fp, ".pt = {\n  .nfibs = {");
-      for (int x = 0; x < 2; x++){
-	fprintf(fp, "%d, ", tensors[t].pt->nfibs[x]);
-      }
-      fprintf(fp, "%d},\n  ", tensors[t].pt->nfibs[2]);
-
-      fprintf(fp, ".fptr = {");
-      for(int x = 0; x < 1; x++){
-	fprintf(fp, "%d, ", *(tensors[t].pt->fptr[x]));
-      }
-      
-      fprintf(fp, "%d},\n  ", *(tensors[t].pt->fptr[1]));
-
-      fprintf(fp, ".fids = {");
-      for(int x = 0; x < 2; x++){
-        fprintf(fp, "%d, ", *(tensors[t].pt->fids[x]));
-      }
-      fprintf(fp, "%d},\n ", *(tensors[t].pt->fids[2]));
-
-      fprintf(fp, ".vals ={");
-      for(int x = 0; x < tensors[t].nnz-1; x++){
-	fprintf(fp, "%d, ", tensors[t].pt->vals[x]);
-      }
-      fprintf(fp, "%d}}}\n", tensors[t].pt->vals[tensors[t].nnz-1]);
+      fprintf(fp, ".pt = &pt_struct_%d", t);
+   
+      fprintf(fp, "},\n");
    }
-      fprintf(fp, "}");
+      
+      fprintf(fp, "};\n\n");
 
+      fprintf(fp, "splatt_csf * _tensors = &tensors_arr[0];");
 
       fprintf(fp, "\n\n\n");
 
 
       /* print mats */
-      fprintf(fp, "matrix_t ** mats = {\n");
-      for (int x = 0; x < 2; x++){
-	fprintf(fp, "  {.I = %d, .J = %d, ", mats[x]->I, mats[x]->J);
-	fprintf(fp, " .vals = {");
+
+      //Get vals
+      for(int x = 0; x < 4; x++){
+	fprintf(fp, "val_t mat_vals_%d[] ={", x);
 	for(int i = 0; i < mats[x]->I * mats[x]->J - 1; i++){
-	  fprintf(fp, "%d, ", mats[x]->vals[i]);
-	} 
-        fprintf(fp, "%d}, ", mats[x]->vals[mats[x]->I * mats[x]->J - 1]);
-	fprintf(fp, ".rowmajor = %d}\n", mats[x]->rowmajor);
+          fprintf(fp, "%f, ", mats[x]->vals[i]);
+        } 
+        fprintf(fp, "%f};\n\n", mats[x]->vals[mats[x]->I * mats[x]->J - 1]);
       }
-      fprintf(fp, "  {.I = %d, .J = %d, ", mats[2]->I, mats[2]->J);
-      fprintf(fp, " .vals = {");
-      for(int i = 0; i < mats[2]->I * mats[2]->J - 1; i++){
-        fprintf(fp, "%d, ", mats[2]->vals[i]);
+
+      //Actual matrices
+      for(int x = 0; x < 4; x++){
+	fprintf(fp, "matrix_t mat_%d = {\n", x);
+	fprintf(fp, ".I = %d, .J = %d, ", mats[x]->I, mats[x]->J);
+	fprintf(fp, ".vals = &mat_vals_%d[0], ", x);
+	fprintf(fp, ".rowmajor = %d\n};\n\n", mats[x]->rowmajor); 
       }
-      fprintf(fp, "%d}, ", mats[2]->vals[mats[2]->I * mats[2]->J - 1]);
-      fprintf(fp, ".rowmajor = %d}}", mats[2]->rowmajor);	
+      
+      //Array of pointers to matrices
+      fprintf(fp, "matrix_t * mat_ptrs[] = {");
+      for(int x = 0; x < 3; x++){
+	fprintf(fp, "&mat_%d, ", x);
+      }
+      fprintf(fp, "&mat_3};\n\n");
+
+      //Param we are using is a double pointer
+      fprintf(fp, "matrix_t ** _mats = &mat_ptrs[0];");
 
 
       fprintf(fp, "\n\n\n");
 
    
       /* print m */
-      fprintf(fp, "int m = 0; ");
+      fprintf(fp, "int _m = 0;");
 
 
       fprintf(fp, "\n\n\n");
+
 
       /* print thds */
       
 
       /* print mttkrp_ws, */
-      fprintf(fp, "splatt_mttkrp_ws * mttkrp_ws = {\n");
+
+      //Get actual privatize buffer
+      fprintf(fp, "splatt_val_t true_pb = %d;\n\n", **mttkrp_ws->privatize_buffer);     
+
+      //tree partitions
+      for(int x = 0; x < 2; x++){
+        fprintf(fp, "splatt_idx_t tree_part_%d = %d;\n\n", x, *mttkrp_ws->tree_partition[x]);
+      }  
+
+      //privatize buffer pointer
+      fprintf(fp, "splatt_val_t * pb_ptr = &true_pb;\n\n");
+
+      //the actual ws struct
+      fprintf(fp, "splatt_mttkrp_ws ws = {\n");
       fprintf(fp, ".num_csf = %d, \n", mttkrp_ws->num_csf);
       fprintf(fp, ".mode_csf_map = {");
       for(int x = 0; x < 2; x++){
@@ -439,10 +499,7 @@ FILE* fp = fopen("args.h", "w");
       fprintf(fp, "%d}, \n", mttkrp_ws->tile_partition[1]);
 
       fprintf(fp, ".tree_partition = {");
-      for(int x = 0; x < 1; x++){
-        fprintf(fp, "%d, ", *(mttkrp_ws->tree_partition[x]));
-      }
-      fprintf(fp, "%d}, \n", *(mttkrp_ws->tree_partition[1]));
+      fprintf(fp, "&tree_part_0, &tree_part_1},\n");
 
       fprintf(fp, ".is_privatized = {");
       for(int x = 0; x < 2; x++){
@@ -450,21 +507,37 @@ FILE* fp = fopen("args.h", "w");
       }
       fprintf(fp, "%d}, \n", mttkrp_ws->is_privatized[2]);
 
-      fprintf(fp, ".privatize_buffer = {%d}\n", *(mttkrp_ws->privatize_buffer));
-      fprintf(fp, "}");
+      fprintf(fp, ".privatize_buffer = &pb_ptr,\n");
       
+      fprintf(fp, ".reduction_time = %lf", mttkrp_ws->reduction_time);
+
+      fprintf(fp, "\n};\n\n");
+      
+      //Our param is a pointer
+      fprintf(fp, "splatt_mttkrp_ws * _mttkrp_ws = &ws;");
+
 
       fprintf(fp, "\n\n\n");
 
 
-      /*print opts */ 
-      fprintf(fp, "double * opts = %d;", *opts);
+      /*print opts */
+ 
+      //Get true val
+      fprintf(fp, "double true_opts = %lf;\n\n", *opts);
+      //opts is a ptr
+      fprintf(fp, "double * _opts = &true_opts;\n");
 
+
+#endif
 
       /* M1 = X * (C o B) */
       timer_start(&timers[TIMER_MTTKRP]);
       clock_gettime(CLOCK_MONOTONIC, &start); /* mark start time */
+      #ifdef DUMP
       mttkrp_csf(tensors, mats, m, thds, mttkrp_ws, opts);
+      #else
+      mttkrp_csf(_tensors, _mats, _m, thds, _mttkrp_ws, _opts);
+      #endif
       clock_gettime(CLOCK_MONOTONIC, &end); /* mark the end time */
       diff += ( BILLION * (end.tv_sec - start.tv_sec) + end.tv_nsec - start.tv_nsec );
       printf("Time taken: %f ns (%ld cycles)\n", diff,  (long int)(diff/0.5)); // number if cycles at 2GHz clock
@@ -492,7 +565,7 @@ FILE* fp = fopen("args.h", "w");
       /* update A^T*A */
       mat_aTa(mats[m], aTa[m], rinfo, thds, nthreads);
       timer_stop(&modetime[m]);
-    } /* foreach mode */
+//    } /* foreach mode */
 
     fit = p_calc_fit(nmodes, rinfo, thds, ttnormsq, lambda, mats, m1, aTa);
     timer_stop(&itertime);
@@ -510,10 +583,10 @@ FILE* fp = fopen("args.h", "w");
     }
     if(fit == 1. || 
         (it > 0 && fabs(fit - oldfit) < opts[SPLATT_OPTION_TOLERANCE])) {
-      break;
+      ///break;
     }
     oldfit = fit;
-  }
+//  }
   timer_stop(&timers[TIMER_CPD]);
 
   cpd_post_process(nfactors, nmodes, mats, lambda, thds, nthreads, rinfo);

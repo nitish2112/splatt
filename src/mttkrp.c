@@ -1299,6 +1299,7 @@ void mttkrp_csf(
     pool = mutex_alloc();
   }
 
+  printf("Max nmdoes: %d\n", MAX_NMODES);
   /* clear output matrix */
   matrix_t * const M = mats[MAX_NMODES];
   M->I = tensors[0].dims[mode];
