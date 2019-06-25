@@ -1894,6 +1894,7 @@ splatt_mttkrp_ws * splatt_mttkrp_alloc_ws(
     }
   }
   for(idx_t t=0; t < num_threads; ++t) {
+    printf("Privatize buffer size: %d\n", largest_priv_dim * ncolumns * sizeof(**(ws->privatize_buffer)));
     ws->privatize_buffer[t] = splatt_malloc(largest_priv_dim * ncolumns *
         sizeof(**(ws->privatize_buffer)));
   }

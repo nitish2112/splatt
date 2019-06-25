@@ -13,7 +13,7 @@ if (DEFINED DEBUG)
 else()
   message("Building in RELEASE mode.")
   set(CMAKE_BUILD_TYPE Release)
-  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O3 -g")
+  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O0 -g -mcmodel=medium")
 endif()
 
 # Development mode enables much more strict warnings

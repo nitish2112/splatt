@@ -336,18 +336,23 @@ double cpd_als_iterate(
       /* print tensors */
 
       //sparsity structs first
+      for(int t = 0; t < 2; t++){
       for(int x = 0; x < 2; x++){
-        fprintf(fp, "splatt_idx_t fptr_vals_%d[] = {", x);
-        fprintf(fp, "%d, ", *(tensors[x].pt->fptr[0]));
-        fprintf(fp, "%d};\n\n", *(tensors[x].pt->fptr[1]));
+        fprintf(fp, "splatt_idx_t fptr_vals_%d_%d[] = {", t, x);
+	for(int i = 0; i < tensors[t].pt->nfibs[x]; i++){
+	   fprintf(fp, "%d, ", tensors[t].pt->fptr[x][i]);
+	}
+        fprintf(fp, "%d};\n\n", tensors[t].pt->fptr[x][tensors[t].pt->nfibs[x]]);
       }
+      
 
-      for(int x = 0; x < 2; x++){
-	fprintf(fp, "splatt_idx_t fids_vals_%d[] = {", x);
-        for(int i = 0; i < 2; i++){
-           fprintf(fp, "%d, ", *(tensors[x].pt->fids[i]));
+      for(int x = 0; x < 3; x++){
+	fprintf(fp, "splatt_idx_t fids_vals_%d_%d[] = {", t, x);
+        for(int i = 0; i < tensors[t].pt->nfibs[x] - 1; i++){
+           fprintf(fp, "%d, ", tensors[t].pt->fids[x][i]);
         }
-        fprintf(fp, "%d};\n\n", *(tensors[x].pt->fids[2]));
+        fprintf(fp, "%d};\n\n", tensors[t].pt->fids[x][tensors[t].pt->nfibs[x] - 1]);
+      }
       }
 
       for(int x = 0; x < 2; x++){
@@ -367,14 +372,14 @@ double cpd_als_iterate(
 	fprintf(fp, "%d},\n", tensors[s].pt->nfibs[2]);
 
 	fprintf(fp, ".fptr = {");
-  	fprintf(fp, "&fptr_vals_%d[0], ", s);
-	fprintf(fp, "&fptr_vals_%d[1]},\n", s);
+  	fprintf(fp, "&fptr_vals_%d_0[0], ", s);
+	fprintf(fp, "&fptr_vals_%d_1[0], 0},\n", s);
 
 	fprintf(fp, ".fids = {");
 	for(int x = 0; x < 2; x++){
-           fprintf(fp, "&fids_vals_%d[%d], ", s, x);
+           fprintf(fp, "&fids_vals_%d_%d[0], ", s, x);
 	}
-	fprintf(fp, "&fids_vals_%d[2]},\n", s);
+	fprintf(fp, "&fids_vals_%d_2[0]},\n", s);
 
 	fprintf(fp, ".vals = &pt_vals_%d[0]", s);
 
@@ -471,12 +476,13 @@ double cpd_als_iterate(
       /* print mttkrp_ws, */
 
       //Get actual privatize buffer
-      fprintf(fp, "splatt_val_t true_pb = %d;\n\n", **mttkrp_ws->privatize_buffer);     
+      fprintf(fp, "splatt_val_t true_pb = %.10e;\n\n", 1.9762625833649862e-322);     
 
       //tree partitions
       for(int x = 0; x < 2; x++){
         fprintf(fp, "splatt_idx_t tree_part_%d = %d;\n\n", x, *mttkrp_ws->tree_partition[x]);
-      }  
+      }
+      fprintf(fp, "splatt_idx_t tree_part_2 = 0;\n\n");  
 
       //privatize buffer pointer
       fprintf(fp, "splatt_val_t * pb_ptr = &true_pb;\n\n");
@@ -493,13 +499,13 @@ double cpd_als_iterate(
       fprintf(fp, ".num_threads = %d, \n", mttkrp_ws->num_threads);
       
       fprintf(fp, ".tile_partition = {");
-      for(int x = 0; x < 1; x++){
+      for(int x = 0; x < 2; x++){
         fprintf(fp, "%d, ", mttkrp_ws->tile_partition[x]);
       }
-      fprintf(fp, "%d}, \n", mttkrp_ws->tile_partition[1]);
+      fprintf(fp, "0}, \n");
 
       fprintf(fp, ".tree_partition = {");
-      fprintf(fp, "&tree_part_0, &tree_part_1},\n");
+      fprintf(fp, "&tree_part_0, &tree_part_1, &tree_part_2},\n");
 
       fprintf(fp, ".is_privatized = {");
       for(int x = 0; x < 2; x++){
@@ -530,13 +536,14 @@ double cpd_als_iterate(
 
 #endif
 
+
       /* M1 = X * (C o B) */
       timer_start(&timers[TIMER_MTTKRP]);
       clock_gettime(CLOCK_MONOTONIC, &start); /* mark start time */
       #ifdef DUMP
       mttkrp_csf(tensors, mats, m, thds, mttkrp_ws, opts);
       #else
-      mttkrp_csf(_tensors, _mats, _m, thds, _mttkrp_ws, _opts);
+      mttkrp_csf(_tensors, mats, _m, thds, mttkrp_ws, _opts);
       #endif
       clock_gettime(CLOCK_MONOTONIC, &end); /* mark the end time */
       diff += ( BILLION * (end.tv_sec - start.tv_sec) + end.tv_nsec - start.tv_nsec );
