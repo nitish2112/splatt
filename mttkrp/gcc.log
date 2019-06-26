@@ -1,0 +1,10 @@
+main.c: In function ‘main’:
+main.c:6:36: error: ‘thds’ undeclared (first use in this function)
+    mttkrp_csf(_tensors, _mats, _m, thds, _mttkrp_ws, _opts);
+                                    ^
+main.c:6:36: note: each undeclared identifier is reported only once for each function it appears in
+main.c:8:19: error: ‘mats’ undeclared (first use in this function)
+    printf("%f\n", mats[3]->vals[0]);
+                   ^
+mttkrp.c:11:24: fatal error: mutex_pool.h: No such file or directory
+compilation terminated.
