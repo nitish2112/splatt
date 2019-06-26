@@ -1897,6 +1897,7 @@ splatt_mttkrp_ws * splatt_mttkrp_alloc_ws(
     printf("Privatize buffer size: %d\n", largest_priv_dim * ncolumns * sizeof(**(ws->privatize_buffer)));
     ws->privatize_buffer[t] = splatt_malloc(largest_priv_dim * ncolumns *
         sizeof(**(ws->privatize_buffer)));
+    printf("BUFFERS: %d x %d", largest_priv_dim, ncolumns);
   }
   if(largest_priv_dim > 0 &&
         (int)opts[SPLATT_OPTION_VERBOSITY] == SPLATT_VERBOSITY_MAX) {

@@ -41,12 +41,13 @@ int splatt_cpd_als(
   for(idx_t m=0; m < nmodes; ++m) {
     mats[m] = (matrix_t *) mat_rand(tensors[0].dims[m], nfactors);
   }
+  
   mats[MAX_NMODES] = mat_alloc(maxdim, nfactors);
 
   val_t * lambda = (val_t *) splatt_malloc(nfactors * sizeof(val_t));
 
   /* do the factorization! */
-  factored->fit = cpd_als_iterate(tensors, mats, lambda, nfactors, &rinfo,
+  factored->fit = cpd_als_iterate(_tensors, _mats, lambda, nfactors, &rinfo,
       options);
 
   /* store output */
@@ -273,7 +274,7 @@ static val_t p_calc_fit(
  * PUBLIC FUNCTIONS
  *****************************************************************************/
 double cpd_als_iterate(
-  splatt_csf const * const tensors,
+  splatt_csf * tensors,
   matrix_t ** mats,
   val_t * const lambda,
   idx_t const nfactors,
@@ -281,7 +282,7 @@ double cpd_als_iterate(
   double const * const opts)
 {
   idx_t const nmodes = tensors[0].nmodes;
-  idx_t const nthreads = (idx_t) opts[SPLATT_OPTION_NTHREADS];
+  idx_t const nthreads = (idx_t) _opts[SPLATT_OPTION_NTHREADS];
 
   /* Setup thread structures. + 64 bytes is to avoid false sharing.
    * TODO make this better */
@@ -305,7 +306,7 @@ double cpd_als_iterate(
   aTa[MAX_NMODES] = mat_alloc(nfactors, nfactors);
 
   /* mttkrp workspace */
-  splatt_mttkrp_ws * mttkrp_ws = splatt_mttkrp_alloc_ws(tensors,nfactors,opts);
+  //splatt_mttkrp_ws * mttkrp_ws = splatt_mttkrp_alloc_ws(tensors,nfactors,opts);
 
   double oldfit = 0;
   double fit = 0;
@@ -327,8 +328,8 @@ double cpd_als_iterate(
 //    for(idx_t m=0; m < nmodes; ++m) {
       idx_t m = 0;
       timer_fstart(&modetime[m]);
-      mats[MAX_NMODES]->I = tensors[0].dims[m];
-      m1->I = mats[m]->I;
+//      mats[MAX_NMODES]->I = tensors[0].dims[m];
+//      m1->I = mats[m]->I;
 
 #ifdef DUMP
     FILE* fp = fopen("args.h", "w");
@@ -433,13 +434,19 @@ double cpd_als_iterate(
       /* print mats */
 
       //Get vals
-      for(int x = 0; x < 4; x++){
+      for(int x = 0; x < 3; x++){
 	fprintf(fp, "val_t mat_vals_%d[] ={", x);
-	for(int i = 0; i < mats[x]->I * mats[x]->J - 1; i++){
+	for(int i = 0; i < ((mats[x]->I * mats[x]->J) - 1); i++){
           fprintf(fp, "%f, ", mats[x]->vals[i]);
         } 
-        fprintf(fp, "%f};\n\n", mats[x]->vals[mats[x]->I * mats[x]->J - 1]);
+        fprintf(fp, "%f};\n\n", mats[x]->vals[((mats[x]->I * mats[x]->J) - 1)]);
       }
+
+      fprintf(fp, "val_t mat_vals_3[] ={");
+      for(int i = 0; i < tensors->dims[argmax_elem(tensors->dims, nmodes)] - 1; i++){
+        fprintf(fp, "%f, ", mats[3]->vals[i]);
+      }
+      fprintf(fp, "%f};\n\n", mats[3]->vals[tensors->dims[argmax_elem(tensors->dims, nmodes)]] - 1);
 
       //Actual matrices
       for(int x = 0; x < 4; x++){
@@ -448,7 +455,7 @@ double cpd_als_iterate(
 	fprintf(fp, ".vals = &mat_vals_%d[0], ", x);
 	fprintf(fp, ".rowmajor = %d\n};\n\n", mats[x]->rowmajor); 
       }
-      
+   
       //Array of pointers to matrices
       fprintf(fp, "matrix_t * mat_ptrs[] = {");
       for(int x = 0; x < 3; x++){
@@ -476,11 +483,15 @@ double cpd_als_iterate(
       /* print mttkrp_ws, */
 
       //Get actual privatize buffer
-      fprintf(fp, "splatt_val_t true_pb = %.10e;\n\n", 1.9762625833649862e-322);     
+      fprintf(fp, "splatt_val_t true_pb = %f;\n\n", **mttkrp_ws->privatize_buffer);     
 
       //tree partitions
       for(int x = 0; x < 2; x++){
-        fprintf(fp, "splatt_idx_t tree_part_%d = %d;\n\n", x, *mttkrp_ws->tree_partition[x]);
+	fprintf(fp, "splatt_idx_t tree_part_%d[] = {", x);
+	for(int i = 0; i < mttkrp_ws->num_threads; i++){
+        fprintf(fp, "%d, ", mttkrp_ws->tree_partition[x][i]);
+	}
+	fprintf(fp, "%d};\n\n", mttkrp_ws->tree_partition[x][mttkrp_ws->num_threads]); 
       }
       fprintf(fp, "splatt_idx_t tree_part_2 = 0;\n\n");  
 
@@ -505,7 +516,7 @@ double cpd_als_iterate(
       fprintf(fp, "0}, \n");
 
       fprintf(fp, ".tree_partition = {");
-      fprintf(fp, "&tree_part_0, &tree_part_1, &tree_part_2},\n");
+      fprintf(fp, "&tree_part_0[0], &tree_part_1[0], 0},\n");
 
       fprintf(fp, ".is_privatized = {");
       for(int x = 0; x < 2; x++){
@@ -543,7 +554,10 @@ double cpd_als_iterate(
       #ifdef DUMP
       mttkrp_csf(tensors, mats, m, thds, mttkrp_ws, opts);
       #else
-      mttkrp_csf(_tensors, mats, _m, thds, mttkrp_ws, _opts);
+      //tensors = _tensors;
+      //mats = _mats;
+      //mttkrp_ws = _mttkrp_ws;
+      mttkrp_csf(tensors, mats, _m, thds, _mttkrp_ws, _opts);
       #endif
       clock_gettime(CLOCK_MONOTONIC, &end); /* mark the end time */
       diff += ( BILLION * (end.tv_sec - start.tv_sec) + end.tv_nsec - start.tv_nsec );
@@ -599,7 +613,7 @@ double cpd_als_iterate(
   cpd_post_process(nfactors, nmodes, mats, lambda, thds, nthreads, rinfo);
 
   /* CLEAN UP */
-  splatt_mttkrp_free_ws(mttkrp_ws);
+  //splatt_mttkrp_free_ws(mttkrp_ws);
   for(idx_t m=0; m < nmodes; ++m) {
     mat_free(aTa[m]);
   }

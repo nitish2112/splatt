@@ -175,7 +175,7 @@ idx_t * partition_weighted(
     /* apply partitioning that we found */
     bool success = lprobe(weights, nitems, parts, nparts, bneck);
     assert(success == true);
-
+  
   /* Do a trivial partitioning. Silly, but this happens when tensors have
    * short modes. */
   } else {

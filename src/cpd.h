@@ -30,7 +30,7 @@
 * @return The final fitness of the factorization.
 */
 double cpd_als_iterate(
-  splatt_csf const * const tensors,
+  splatt_csf  *  tensors,
   matrix_t ** mats,
   val_t * const lambda,
   idx_t const nfactors,
