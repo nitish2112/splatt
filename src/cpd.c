@@ -282,6 +282,7 @@ double cpd_als_iterate(
   double const * const opts)
 {
   idx_t const nmodes = tensors[0].nmodes;
+  //idx_t const nthreads = (idx_t) opts[SPLATT_OPTION_NTHREADS];
   idx_t const nthreads = (idx_t) _opts[SPLATT_OPTION_NTHREADS];
 
   /* Setup thread structures. + 64 bytes is to avoid false sharing.
@@ -306,7 +307,7 @@ double cpd_als_iterate(
   aTa[MAX_NMODES] = mat_alloc(nfactors, nfactors);
 
   /* mttkrp workspace */
-  //splatt_mttkrp_ws * mttkrp_ws = splatt_mttkrp_alloc_ws(tensors,nfactors,opts);
+  splatt_mttkrp_ws * mttkrp_ws = splatt_mttkrp_alloc_ws(tensors,nfactors,opts);
 
   double oldfit = 0;
   double fit = 0;
@@ -479,6 +480,43 @@ double cpd_als_iterate(
 
       /* print thds */
       
+      //Get scratch values
+      fprintf(fp, "scratch_0[] = {");
+      for(int x = 0; x < nmodes*nfactors*4 - 1; x++){
+	fprintf(fp, "0, ");
+      }
+      fprintf(fp, "0};\n\n");
+
+      fprintf(fp, "scratch_2[] = {");
+      for(int x = 0; x < nmodes*nfactors*4 - 1; x++){
+        fprintf(fp, "0, ");
+      }
+      fprintf(fp, "0};\n\n");
+
+      //Void pointers
+      fprintf(fp, "void * scratch_ptrs[] = {");
+      fprintf(fp, "&scratch_0[0], 0, &scratch_2[0]};\n\n");
+
+      //Get the struct
+      fprintf(fp, "thd_info thd_struct = {\n");
+
+      fprintf(fp, ".nscratch = %d, \n", thds->nscratch);
+      fprintf(fp, ".scratch = &scratch_ptrs[0], \n");
+      fprintf(fp, ".ttime = {\n");
+
+      fprintf(fp, "  .running = %d, \n", thds->ttime.running);
+      fprintf(fp, "  .seconds = %f, \n", thds->ttime.seconds);
+      fprintf(fp, "  .start = %f, \n", thds->ttime.start);
+      fprintf(fp, "  .seconds = %f, \n  }\n", thds->ttime.stop);
+
+      fprintf(fp, "};\n\n");
+
+      //Param is a pointer
+      fprintf(fp, "thd_info * _thds = &thd_struct;");
+
+
+      fprintf(fp, "\n\n\n");
+
 
       /* print mttkrp_ws, */
 
@@ -557,7 +595,7 @@ double cpd_als_iterate(
       //tensors = _tensors;
       //mats = _mats;
       //mttkrp_ws = _mttkrp_ws;
-      mttkrp_csf(tensors, mats, _m, thds, _mttkrp_ws, _opts);
+      mttkrp_csf(tensors, mats, _m, _thds, _mttkrp_ws, _opts);
       #endif
       clock_gettime(CLOCK_MONOTONIC, &end); /* mark the end time */
       diff += ( BILLION * (end.tv_sec - start.tv_sec) + end.tv_nsec - start.tv_nsec );
