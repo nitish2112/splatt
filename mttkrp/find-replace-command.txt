@@ -1,0 +1,2 @@
+:%s/what to replace/to replace with/gc
+

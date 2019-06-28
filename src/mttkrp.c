@@ -11,6 +11,13 @@
 #include "mutex_pool.h"
 
 
+matrix_t p_schedule_tiles_malloc1;
+
+mutex_pool mutex_pool1 = { .num_locks = SPLATT_DEFAULT_NLOCKS, .pad_size = SPLATT_DEFAULT_LOCK_PAD, .locks = NULL};
+
+mutex_pool mutex_pool2 = { .num_locks = SPLATT_DEFAULT_NLOCKS, .pad_size = SPLATT_DEFAULT_LOCK_PAD, .locks = NULL};
+
+
 /* XXX: this is a memory leak until cpd_ws is added/freed. */
 static mutex_pool * pool = NULL;
 
@@ -137,7 +144,7 @@ static void p_schedule_tiles(
       mats_priv[m] = mats[m];
     }
     /* each thread gets separate structure, but do a shallow copy */
-    mats_priv[MAX_NMODES] = splatt_malloc(sizeof(**mats_priv));
+    mats_priv[MAX_NMODES] = &p_schedule_tiles_malloc1;//splatt_malloc(sizeof(**mats_priv));
     *(mats_priv[MAX_NMODES]) = *(mats[MAX_NMODES]);
 
     /* Give each thread its own private buffer and overwrite atomic
@@ -201,7 +208,7 @@ static void p_schedule_tiles(
       p_reduce_privatized(ws, global_output, nrows, ncols);
     }
 
-    splatt_free(mats_priv[MAX_NMODES]);
+    //splatt_free(mats_priv[MAX_NMODES]);
   } /* end omp parallel */
 
   /* restore pointer */
@@ -274,11 +281,11 @@ static inline void p_csf_process_fiber_locked(
   for(idx_t jj=start; jj < end; ++jj) {
     val_t * const restrict leafrow = leafmat + (inds[jj] * nfactors);
     val_t const v = vals[jj];
-    mutex_set_lock(pool, inds[jj]);
+    //mutex_set_lock(pool, inds[jj]);
     for(idx_t f=0; f < nfactors; ++f) {
       leafrow[f] += v * accumbuf[f];
     }
-    mutex_unset_lock(pool, inds[jj]);
+    //mutex_unset_lock(pool, inds[jj]);
   }
 }
 
@@ -531,12 +538,12 @@ static void p_csf_mttkrp_root3_locked(
     val_t * const restrict mv = ovals + (fid * nfactors);
 
     /* flush to output */
-    mutex_set_lock(pool, fid);
+    //mutex_set_lock(pool, fid);
     for(idx_t r=0; r < nfactors; ++r) {
       mv[r] += writeF[r];
       writeF[r] = 0.;
     }
-    mutex_unset_lock(pool, fid);
+   // mutex_unset_lock(pool, fid);
   }
 }
 
@@ -597,11 +604,11 @@ static void p_csf_mttkrp_intl3_locked(
 
       /* write to fiber row */
       val_t * const restrict ov = ovals  + (fids[f] * nfactors);
-      mutex_set_lock(pool, fids[f]);
+      // mutex_set_lock(pool, fids[f]);
       for(idx_t r=0; r < nfactors; ++r) {
         ov[r] += rv[r] * accumF[r];
       }
-      mutex_unset_lock(pool, fids[f]);
+      // mutex_unset_lock(pool, fids[f]);
     }
   }
 }
@@ -654,11 +661,11 @@ static void p_csf_mttkrp_leaf3_locked(
       for(idx_t jj=fptr[f]; jj < fptr[f+1]; ++jj) {
         val_t const v = vals[jj];
         val_t * const restrict ov = ovals + (inds[jj] * nfactors);
-        mutex_set_lock(pool, inds[jj]);
+        // mutex_set_lock(pool, inds[jj]);
         for(idx_t r=0; r < nfactors; ++r) {
           ov[r] += v * accumF[r];
         }
-        mutex_unset_lock(pool, inds[jj]);
+     //   mutex_unset_lock(pool, inds[jj]);
       }
     }
   }
@@ -723,11 +730,11 @@ static void p_csf_mttkrp_root_nolock(
 
     val_t       * const restrict orow = ovals + (fid * nfactors);
     val_t const * const restrict obuf = buf[0];
-    mutex_set_lock(pool, fid);
+    // mutex_set_lock(pool, fid);
     for(idx_t f=0; f < nfactors; ++f) {
       orow[f] += obuf[f];
     }
-    mutex_unset_lock(pool, fid);
+   //  mutex_unset_lock(pool, fid);
   } /* end foreach outer slice */
 }
 
@@ -790,11 +797,11 @@ static void p_csf_mttkrp_root_locked(
 
     val_t * const restrict orow = ovals + (fid * nfactors);
     val_t const * const restrict obuf = buf[0];
-    mutex_set_lock(pool, fid);
+    // mutex_set_lock(pool, fid);
     for(idx_t f=0; f < nfactors; ++f) {
       orow[f] += obuf[f];
     }
-    mutex_unset_lock(pool, fid);
+   //  mutex_unset_lock(pool, fid);
   } /* end foreach outer slice */
 }
 
@@ -1264,9 +1271,9 @@ static void p_csf_mttkrp_intl_locked(
           fp, fids, vals, mvals, nmodes, nfactors);
 
       val_t * const restrict outbuf = ovals + (noderow * nfactors);
-      mutex_set_lock(pool, noderow);
+      // mutex_set_lock(pool, noderow);
       p_add_hada_clear(outbuf, buf[outdepth], buf[outdepth-1], nfactors);
-      mutex_unset_lock(pool, noderow);
+      // mutex_unset_lock(pool, noderow);
 
       /* backtrack to next unfinished node */
       do {
@@ -1296,7 +1303,7 @@ void mttkrp_csf(
   //splatt_omp_set_num_threads(ws->num_threads);
 
   if(pool == NULL) {
-    pool = mutex_alloc();
+    pool = &mutex_pool1; //mutex_alloc();
   }
 
   printf("Max nmdoes: %d\n", MAX_NMODES);
@@ -1703,7 +1710,7 @@ void mttkrp_stream(
   idx_t const mode)
 {
   if(pool == NULL) {
-    pool = mutex_alloc();
+    pool = &mutex_pool2; //mutex_alloc();
   }
 
   matrix_t * const M = mats[MAX_NMODES];
@@ -1724,7 +1731,7 @@ void mttkrp_stream(
 
 //  #pragma omp parallel
   {
-    val_t * restrict accum = splatt_malloc(nfactors * sizeof(*accum));
+    val_t * restrict accum = malloc(nfactors * sizeof(*accum));
 
     /* stream through nnz */
 //    #pragma omp for schedule(static)
@@ -1748,11 +1755,11 @@ void mttkrp_stream(
       /* write to output */
       idx_t const out_ind = tt->ind[mode][n];
       val_t * const restrict outrow = outmat + (tt->ind[mode][n] * nfactors);
-      mutex_set_lock(pool, out_ind);
+      // mutex_set_lock(pool, out_ind);
       for(idx_t f=0; f < nfactors; ++f) {
         outrow[f] += accum[f];
       }
-      mutex_unset_lock(pool, out_ind);
+      // mutex_unset_lock(pool, out_ind);
     }
 
     splatt_free(accum);
@@ -1776,13 +1783,13 @@ int splatt_mttkrp(
   /* fill matrix pointers  */
   matrix_t * mats[MAX_NMODES+1];
   for(idx_t m=0; m < nmodes; ++m) {
-    mats[m] = (matrix_t *) splatt_malloc(sizeof(matrix_t));
+    mats[m] = (matrix_t *) malloc(sizeof(matrix_t));
     mats[m]->I = tensors->dims[m];
     mats[m]->J = ncolumns,
     mats[m]->rowmajor = 1;
     mats[m]->vals = matrices[m];
   }
-  mats[MAX_NMODES] = (matrix_t *) splatt_malloc(sizeof(matrix_t));
+  mats[MAX_NMODES] = (matrix_t *) malloc(sizeof(matrix_t));
   mats[MAX_NMODES]->I = tensors->dims[mode];
   mats[MAX_NMODES]->J = ncolumns;
   mats[MAX_NMODES]->rowmajor = 1;
@@ -1819,7 +1826,7 @@ splatt_mttkrp_ws * splatt_mttkrp_alloc_ws(
     splatt_idx_t const ncolumns,
     double const * const opts)
 {
-  splatt_mttkrp_ws * ws = splatt_malloc(sizeof(*ws));
+  splatt_mttkrp_ws * ws = malloc(sizeof(*ws));
 
   idx_t num_csf = 0;
 
@@ -1884,7 +1891,7 @@ splatt_mttkrp_ws * splatt_mttkrp_alloc_ws(
   /* allocate privatization buffer */
   idx_t largest_priv_dim = 0;
   ws->privatize_buffer =
-      splatt_malloc(num_threads * sizeof(*(ws->privatize_buffer)));
+      malloc(num_threads * sizeof(*(ws->privatize_buffer)));
   for(idx_t m=0; m < tensors->nmodes; ++m) {
     ws->is_privatized[m] = p_is_privatized(tensors, m, opts);
 
@@ -1897,7 +1904,7 @@ splatt_mttkrp_ws * splatt_mttkrp_alloc_ws(
   }
   for(idx_t t=0; t < num_threads; ++t) {
     printf("Privatize buffer size: %d\n", largest_priv_dim * ncolumns * sizeof(**(ws->privatize_buffer)));
-    ws->privatize_buffer[t] = splatt_malloc(largest_priv_dim * ncolumns *
+    ws->privatize_buffer[t] = malloc(largest_priv_dim * ncolumns *
         sizeof(**(ws->privatize_buffer)));
     printf("BUFFERS: %d x %d", largest_priv_dim, ncolumns);
   }

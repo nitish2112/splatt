@@ -481,13 +481,13 @@ double cpd_als_iterate(
       /* print thds */
       
       //Get scratch values
-      fprintf(fp, "scratch_0[] = {");
+      fprintf(fp, "int scratch_0[] = {");
       for(int x = 0; x < nmodes*nfactors*4 - 1; x++){
 	fprintf(fp, "0, ");
       }
       fprintf(fp, "0};\n\n");
 
-      fprintf(fp, "scratch_2[] = {");
+      fprintf(fp, "int scratch_2[] = {");
       for(int x = 0; x < nmodes*nfactors*4 - 1; x++){
         fprintf(fp, "0, ");
       }
