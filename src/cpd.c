@@ -15,9 +15,13 @@
 #include <time.h>
 
 #define BILLION 1000000000L
-#include "../args.h"
 
 //#define DUMP
+
+#ifndef DUMP
+  #include "../args.h"
+#endif
+
 
 /******************************************************************************
  * API FUNCTIONS
@@ -47,8 +51,13 @@ int splatt_cpd_als(
   val_t * lambda = (val_t *) splatt_malloc(nfactors * sizeof(val_t));
 
   /* do the factorization! */
+  #ifndef DUMP
   factored->fit = cpd_als_iterate(_tensors, _mats, lambda, nfactors, &rinfo,
       options);
+  #else
+  factored->fit = cpd_als_iterate(tensors, mats, lambda, nfactors, &rinfo,
+      options);
+  #endif
 
   /* store output */
   factored->rank = nfactors;
@@ -283,7 +292,7 @@ double cpd_als_iterate(
 {
   idx_t const nmodes = tensors[0].nmodes;
   //idx_t const nthreads = (idx_t) opts[SPLATT_OPTION_NTHREADS];
-  idx_t const nthreads = (idx_t) _opts[SPLATT_OPTION_NTHREADS];
+  idx_t const nthreads = (idx_t) opts[SPLATT_OPTION_NTHREADS];
 
   /* Setup thread structures. + 64 bytes is to avoid false sharing.
    * TODO make this better */
@@ -327,34 +336,69 @@ double cpd_als_iterate(
     idx_t  it = 0;
     timer_fstart(&itertime);
 //    for(idx_t m=0; m < nmodes; ++m) {
-      idx_t m = 0;
+      idx_t m = 1;
       timer_fstart(&modetime[m]);
-//      mats[MAX_NMODES]->I = tensors[0].dims[m];
-//      m1->I = mats[m]->I;
+      #ifdef DUMP
+      mats[MAX_NMODES]->I = tensors[0].dims[m];
+      m1->I = mats[m]->I;
+      #endif
 
 #ifdef DUMP
-    FILE* fp = fopen("args.h", "w");
+      FILE* fp = fopen("args.h", "w");
 
       /* print tensors */
 
-      //sparsity structs first
-      for(int t = 0; t < 2; t++){
-      for(int x = 0; x < 2; x++){
-        fprintf(fp, "splatt_idx_t fptr_vals_%d_%d[] = {", t, x);
-	for(int i = 0; i < tensors[t].pt->nfibs[x]; i++){
-	   fprintf(fp, "%d, ", tensors[t].pt->fptr[x][i]);
-	}
-        fprintf(fp, "%d};\n\n", tensors[t].pt->fptr[x][tensors[t].pt->nfibs[x]]);
-      }
-      
+      /*
+       splatt_idx_t is uint32_t
+       SPLATT_MAX_NMODES = 3
+       splatt_tile_type  is enum that evaluates to SPLATT_NOTILE
+       typedef struct splatt_csf
+       {
+         splatt_idx_t nnz;
+         splatt_idx_t nmodes;
+         splatt_idx_t dims[SPLATT_MAX_NMODES];
+         splatt_idx_t dim_perm[SPLATT_MAX_NMODES];
+         splatt_idx_t dim_iperm[SPLATT_MAX_NMODES];
+         splatt_tile_type which_tile;
+         splatt_idx_t ntiles;
+         splatt_idx_t ntiled_modes;
+         splatt_idx_t tile_dims[SPLATT_MAX_NMODES];
+         csf_sparsity * pt;
+       } splatt_csf;
 
-      for(int x = 0; x < 3; x++){
-	fprintf(fp, "splatt_idx_t fids_vals_%d_%d[] = {", t, x);
-        for(int i = 0; i < tensors[t].pt->nfibs[x] - 1; i++){
-           fprintf(fp, "%d, ", tensors[t].pt->fids[x][i]);
+       typedef struct
+       {
+         splatt_idx_t nfibs[SPLATT_MAX_NMODES]; // this is nnz
+         splatt_idx_t * fptr[SPLATT_MAX_NMODES]; // each one is of size nfibs + 1 
+         splatt_idx_t * fids[SPLATT_MAX_NMODES]; // each pointer points to array of size nfibs
+         splatt_val_t * vals; // of size nnz
+       } csf_sparsity;
+
+       */
+
+      //sparsity structs first
+
+      /* cmds/cmd_cpd.c calls csf_alloc (csf.c) for 2 modes. This calls p_mk_csf(csf.c)
+         which calls p_csf_alloc_untiled (csf.c) */ 
+
+      printf("\nSPLATT_IDX_TYPEWIDTH = %d\n", SPLATT_IDX_TYPEWIDTH);
+
+      for(int t = 0; t < 2; t++){
+        for(int x = 0; x < 2; x++){
+          fprintf(fp, "splatt_idx_t fptr_vals_%d_%d[] = {", t, x);
+          for(int i = 0; i < tensors[t].pt->nfibs[x]; i++){
+             fprintf(fp, "%d, ", tensors[t].pt->fptr[x][i]);
+          }
+          fprintf(fp, "%d};\n\n", tensors[t].pt->fptr[x][tensors[t].pt->nfibs[x]]);
         }
-        fprintf(fp, "%d};\n\n", tensors[t].pt->fids[x][tensors[t].pt->nfibs[x] - 1]);
-      }
+
+        for(int x = 0; x < 3; x++){
+          fprintf(fp, "splatt_idx_t fids_vals_%d_%d[] = {", t, x);
+          for(int i = 0; i < tensors[t].pt->nfibs[x] - 1; i++){
+             fprintf(fp, "%d, ", tensors[t].pt->fids[x][i]);
+          }
+          fprintf(fp, "%d};\n\n", tensors[t].pt->fids[x][tensors[t].pt->nfibs[x] - 1]);
+        }
       }
 
       for(int x = 0; x < 2; x++){
@@ -391,39 +435,39 @@ double cpd_als_iterate(
       //Now tensors
       fprintf(fp, "splatt_csf tensors_arr[] = {\n");
   
-    for(int t = 0; t < 2; t++){
-      fprintf(fp, "{.nnz = %d,\n.nmodes = %d,\n", tensors[t].nnz, tensors[t].nmodes);
+      for(int t = 0; t < 2; t++){
+        fprintf(fp, "{.nnz = %d,\n.nmodes = %d,\n", tensors[t].nnz, tensors[t].nmodes);
+        
+        fprintf(fp, ".dims = {");
+        for (int x = 0; x < 2; x++){
+          fprintf(fp, "%d, ", tensors[t].dims[x]);
+        }
+        fprintf(fp, "%d},\n", tensors[t].dims[2]);
+
+        fprintf(fp, ".dim_perm = {");
+        for (int x = 0; x < 2; x++){
+          fprintf(fp, "%d, ", tensors[t].dim_perm[x]);
+        }
+        fprintf(fp, "%d},\n", tensors[t].dim_perm[2]);
+
+        fprintf(fp, ".dim_iperm = {");
+        for (int x = 0; x < 2; x++){
+          fprintf(fp, "%d, ", tensors[t].dim_iperm[x]);
+        }
+        fprintf(fp, "%d},\n", tensors[t].dim_iperm[2]);
+
+        fprintf(fp, ".which_tile = %d,\n.ntiles = %d,\n", tensors[t].which_tile, tensors[t].ntiles);
       
-      fprintf(fp, ".dims = {");
-      for (int x = 0; x < 2; x++){
-        fprintf(fp, "%d, ", tensors[t].dims[x]);
-      }
-      fprintf(fp, "%d},\n", tensors[t].dims[2]);
+        fprintf(fp, ".ntiled_modes = %d,\n.tile_dims = {", tensors[t].ntiled_modes);
+        for(int x = 0; x < 2; x++){
+          fprintf(fp, "%d, ", tensors[t].tile_dims[x]);
+        }
+        fprintf(fp, "%d},\n", tensors[t].tile_dims[2]);
 
-      fprintf(fp, ".dim_perm = {");
-      for (int x = 0; x < 2; x++){
-        fprintf(fp, "%d, ", tensors[t].dim_perm[x]);
-      }
-      fprintf(fp, "%d},\n", tensors[t].dim_perm[2]);
-
-      fprintf(fp, ".dim_iperm = {");
-      for (int x = 0; x < 2; x++){
-        fprintf(fp, "%d, ", tensors[t].dim_iperm[x]);
-      }
-      fprintf(fp, "%d},\n", tensors[t].dim_iperm[2]);
-
-      fprintf(fp, ".which_tile = %d,\n.ntiles = %d,\n", tensors[t].which_tile, tensors[t].ntiles);
-    
-      fprintf(fp, ".ntiled_modes = %d,\n.tile_dims = {", tensors[t].ntiled_modes);
-      for(int x = 0; x < 2; x++){
-        fprintf(fp, "%d, ", tensors[t].tile_dims[x]);
-      }
-      fprintf(fp, "%d},\n", tensors[t].tile_dims[2]);
-
-      fprintf(fp, ".pt = &pt_struct_%d", t);
+        fprintf(fp, ".pt = &pt_struct_%d", t);
    
-      fprintf(fp, "},\n");
-   }
+        fprintf(fp, "},\n");
+      }  
       
       fprintf(fp, "};\n\n");
 
@@ -433,6 +477,15 @@ double cpd_als_iterate(
 
 
       /* print mats */
+      /*
+        typedef struct
+        {
+          idx_t I;
+          idx_t J;
+          val_t *vals;
+          int rowmajor;
+        } matrix_t;
+      */
 
       //Get vals
       for(int x = 0; x < 3; x++){
@@ -444,10 +497,10 @@ double cpd_als_iterate(
       }
 
       fprintf(fp, "val_t mat_vals_3[] ={");
-      for(int i = 0; i < tensors->dims[argmax_elem(tensors->dims, nmodes)] - 1; i++){
+      for(int i = 0; i < ((tensors->dims[argmax_elem(tensors->dims, nmodes)] * mats[3]->J) - 1); i++){
         fprintf(fp, "%f, ", mats[3]->vals[i]);
       }
-      fprintf(fp, "%f};\n\n", mats[3]->vals[tensors->dims[argmax_elem(tensors->dims, nmodes)]] - 1);
+      fprintf(fp, "%f};\n\n", mats[3]->vals[(tensors->dims[argmax_elem(tensors->dims, nmodes)] * mats[3]->J) - 1]);
 
       //Actual matrices
       for(int x = 0; x < 4; x++){
@@ -471,24 +524,17 @@ double cpd_als_iterate(
       fprintf(fp, "\n\n\n");
 
    
-      /* print m */
-      fprintf(fp, "int _m = 0;");
-
-
-      fprintf(fp, "\n\n\n");
-
-
       /* print thds */
       
       //Get scratch values
       fprintf(fp, "int scratch_0[] = {");
-      for(int x = 0; x < nmodes*nfactors*4 - 1; x++){
+      for(int x = 0; x < ((nmodes * nfactors * sizeof(val_t)) + 64) - 1; x++){
 	fprintf(fp, "0, ");
       }
       fprintf(fp, "0};\n\n");
 
       fprintf(fp, "int scratch_2[] = {");
-      for(int x = 0; x < nmodes*nfactors*4 - 1; x++){
+      for(int x = 0; x < ((nmodes * nfactors * sizeof(val_t)) + 64) - 1; x++){
         fprintf(fp, "0, ");
       }
       fprintf(fp, "0};\n\n");
@@ -513,7 +559,6 @@ double cpd_als_iterate(
 
       //Param is a pointer
       fprintf(fp, "thd_info * _thds = &thd_struct;");
-
 
       fprintf(fp, "\n\n\n");
 
@@ -592,10 +637,7 @@ double cpd_als_iterate(
       #ifdef DUMP
       mttkrp_csf(tensors, mats, m, thds, mttkrp_ws, opts);
       #else
-      //tensors = _tensors;
-      //mats = _mats;
-      //mttkrp_ws = _mttkrp_ws;
-      mttkrp_csf(tensors, mats, _m, _thds, _mttkrp_ws, _opts);
+      mttkrp_csf(tensors, mats, m, _thds, _mttkrp_ws, opts);
       #endif
       clock_gettime(CLOCK_MONOTONIC, &end); /* mark the end time */
       diff += ( BILLION * (end.tv_sec - start.tv_sec) + end.tv_nsec - start.tv_nsec );

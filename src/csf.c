@@ -10,6 +10,7 @@
 
 #include "io.h"
 
+#include <assert.h>
 
 /******************************************************************************
  * API FUNCTIONS
@@ -617,6 +618,8 @@ static void p_mk_csf(
   idx_t const mode,
   double const * const splatt_opts)
 {
+  assert(false);
+
   ct->nnz = tt->nnz;
   ct->nmodes = tt->nmodes;
 
@@ -634,6 +637,7 @@ static void p_mk_csf(
     p_csf_alloc_untiled(ct, tt);
     break;
   case SPLATT_DENSETILE:
+    exit(1);
     p_csf_alloc_densetile(ct, tt, splatt_opts);
     break;
   default:
@@ -780,6 +784,7 @@ splatt_csf * csf_alloc(
 
   switch((splatt_csf_type) opts[SPLATT_OPTION_CSF_ALLOC]) {
   case SPLATT_CSF_ONEMODE:
+    exit(1);
     ret = splatt_malloc(sizeof(*ret));
     p_mk_csf(ret, tt, CSF_SORTED_SMALLFIRST, 0, opts);
     break;
@@ -803,6 +808,7 @@ splatt_csf * csf_alloc(
     break;
 
   case SPLATT_CSF_ALLMODE:
+    exit(1);
     ret = splatt_malloc(tt->nmodes * sizeof(*ret));
     for(idx_t m=0; m < tt->nmodes; ++m) {
       p_mk_csf(ret + m, tt, CSF_SORTED_MINUSONE, m, opts);

@@ -35,7 +35,7 @@ void fill_rand(
   idx_t const nelems)
 {
   for(idx_t i=0; i < nelems; ++i) {
-    vals[i] = rand_val();
+    vals[i] = 1; //rand_val();
   }
 }
 
