@@ -16,7 +16,7 @@
 
 #define BILLION 1000000000L
 
-//#define DUMP
+#define DUMP
 
 #ifndef DUMP
   #include "../args.h"
@@ -394,10 +394,15 @@ double cpd_als_iterate(
 
         for(int x = 0; x < 3; x++){
           fprintf(fp, "splatt_idx_t fids_vals_%d_%d[] = {", t, x);
-          for(int i = 0; i < tensors[t].pt->nfibs[x] - 1; i++){
-             fprintf(fp, "%d, ", tensors[t].pt->fids[x][i]);
+          if (tensors[t].pt->fids[x] != 0) {
+            for(int i = 0; i < tensors[t].pt->nfibs[x] - 1; i++){
+               fprintf(fp, "%d, ", tensors[t].pt->fids[x][i]);
+            }
+            fprintf(fp, "%d};\n\n", tensors[t].pt->fids[x][tensors[t].pt->nfibs[x] - 1]);
           }
-          fprintf(fp, "%d};\n\n", tensors[t].pt->fids[x][tensors[t].pt->nfibs[x] - 1]);
+          else {
+            fprintf(fp, "};\n\n");
+          }
         }
       }
 
